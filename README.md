@@ -19,13 +19,22 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Run the dashboard
+## Run the assignment pipeline
 
 ```bash
+python run_analysis.py
+```
+
+This generates reproducible synthetic transactions, trains Isolation Forest, prints a summary, and writes `outputs/expense_anomaly_analysis.csv`.
+
+Optional dashboard:
+
+```bash
+pip install -r requirements-dashboard.txt
 streamlit run app.py
 ```
 
-The app generates data on demand. Use the sidebar controls to change the number of transactions and random seed, or upload a CSV.
+The dashboard generates data on demand or accepts a CSV upload. Use the sidebar controls to change the number of transactions and random seed.
 
 Uploaded CSV files require `date`, `category`, and `amount` columns. `transaction_id`, `hour`, and `channel` are optional; missing optional values are generated safely. Do not upload names, account numbers, card numbers, or other personally identifying information.
 
@@ -38,7 +47,8 @@ pytest -q
 ## Project structure
 
 ```text
-app.py                         Streamlit dashboard
+run_analysis.py                Command-line assignment entry point
+app.py                         Optional Streamlit dashboard
 src/expense_anomaly/           Reusable data and model code
 tests/                         Focused unit tests
 ```
