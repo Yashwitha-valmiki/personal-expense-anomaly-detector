@@ -28,6 +28,36 @@ CATEGORY_PROFILES: dict[str, CategoryProfile] = {
     "Subscriptions": CategoryProfile(18, 5, 0.03),
 }
 
+REQUIRED_COLUMNS = {"transaction_id", "date", "category", "amount", "channel"}
+
+
+def normalize_transactions(transactions: pd.DataFrame) -> pd.DataFrame:
+    """Validate and normalize a transaction table for model inference."""
+    result = transactions.copy()
+    if "transaction_id" not in result.columns:
+        result.insert(0, "transaction_id", [f"TXN-{index + 1:05d}" for index in range(len(result))])
+    if "channel" not in result.columns:
+        result["channel"] = "Unknown"
+    if "hour" not in result.columns and "date" in result.columns:
+        parsed_dates = pd.to_datetime(result["date"], errors="coerce")
+        result["hour"] = parsed_dates.dt.hour
+
+    missing = REQUIRED_COLUMNS.difference(result.columns)
+    if missing:
+        raise ValueError(f"CSV is missing required columns: {', '.join(sorted(missing))}")
+    result["date"] = pd.to_datetime(result["date"], errors="coerce")
+    result["amount"] = pd.to_numeric(result["amount"], errors="coerce")
+    result["hour"] = pd.to_numeric(result["hour"], errors="coerce")
+    if result[["date", "amount", "hour"]].isna().any().any():
+        raise ValueError("date, amount, and hour must contain valid values")
+    if (result["amount"] <= 0).any() or ~result["amount"].map(np.isfinite).all():
+        raise ValueError("amount must contain only positive finite values")
+    if not result["hour"].between(0, 23).all():
+        raise ValueError("hour must be between 0 and 23")
+    if result.empty:
+        raise ValueError("at least one transaction is required")
+    return result.sort_values("date").reset_index(drop=True)
+
 
 def generate_transactions(
     n_transactions: int = 500,
@@ -76,4 +106,4 @@ def generate_transactions(
         }
     )
     transactions.loc[anomaly_indexes, "injected_anomaly"] = True
-    return transactions.sort_values("date").reset_index(drop=True)
+    return normalize_transactions(transactions)

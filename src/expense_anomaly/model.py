@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import IsolationForest
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.metrics import precision_recall_fscore_support
 
 
 def _build_pipeline(contamination: float, random_state: int) -> Pipeline:
@@ -56,6 +56,8 @@ def detect_anomalies(
         raise ValueError(f"Missing required columns: {', '.join(sorted(missing))}")
     if not 0 < contamination < 0.5:
         raise ValueError("contamination must be between 0 and 0.5")
+    if len(transactions) < 20:
+        raise ValueError("at least 20 transactions are required")
 
     result = transactions.copy()
     result["day_of_week"] = pd.to_datetime(result["date"]).dt.dayofweek if "date" in result else 0
@@ -70,3 +72,18 @@ def detect_anomalies(
         axis=1,
     )
     return result.sort_values("anomaly_score", ascending=False).reset_index(drop=True), pipeline
+
+
+def evaluate_known_labels(results: pd.DataFrame) -> dict[str, float] | None:
+    """Evaluate detection when synthetic ground-truth labels are available."""
+    if "injected_anomaly" not in results.columns:
+        return None
+    labels = results["injected_anomaly"].astype(bool)
+    predictions = results["is_anomaly"].astype(bool)
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        labels,
+        predictions,
+        average="binary",
+        zero_division=0,
+    )
+    return {"precision": float(precision), "recall": float(recall), "f1": float(f1)}
